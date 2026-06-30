@@ -23,12 +23,16 @@ export function CoverImage({
   imageAlt,
   credit,
   rounded = "md",
+  fit = "cover",
+  position = "center",
 }: {
   name: string;
   imageUrl: string | null;
   imageAlt: string | null;
   credit?: string | null;
   rounded?: string;
+  fit?: "cover" | "contain";
+  position?: string;
 }) {
   const [errored, setErrored] = useState(false);
   const showImage = Boolean(imageUrl) && !errored;
@@ -44,7 +48,13 @@ export function CoverImage({
           title={title}
           loading="lazy"
           onError={() => setErrored(true)}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: fit,
+            objectPosition: position,
+            display: "block",
+          }}
         />
       ) : (
         <Flex

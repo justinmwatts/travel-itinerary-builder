@@ -45,6 +45,7 @@ export function BuilderPage() {
   const { data: me } = useMe();
   const { data: loaded, isPending: loadingDraft, isError: loadError } = useItinerary(id);
 
+  const itineraryId = useChatStore((s) => s.itineraryId);
   const title = useChatStore((s) => s.title);
   const destinations = useChatStore((s) => s.destinations);
   const messages = useChatStore((s) => s.messages);
@@ -189,7 +190,12 @@ export function BuilderPage() {
           h="100%"
           display={{ base: mobileTab === "itinerary" ? "block" : "none", md: "block" }}
         >
-          <ItineraryPanel title={title} destinations={destinations} onSaveNote={handleSaveNote} />
+          <ItineraryPanel
+            title={title}
+            destinations={destinations}
+            itineraryId={itineraryId}
+            onSaveNote={handleSaveNote}
+          />
         </Box>
       </Flex>
     </Flex>

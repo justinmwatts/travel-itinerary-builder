@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Destination, Itinerary, MyItinerariesResponse } from "@travel/shared";
+import type { Destination, Itinerary, LayoutConfig, MyItinerariesResponse } from "@travel/shared";
 import { apiRequest } from "../../lib/apiClient";
 
 export const myItinerariesKey = ["itineraries", "mine"] as const;
@@ -36,6 +36,26 @@ export function useItinerary(id: string | undefined) {
     queryKey: id ? itineraryKey(id) : ["itinerary", "none"],
     queryFn: () => fetchItinerary(id as string),
     enabled: Boolean(id),
+  });
+}
+
+// Owner edit of title and/or layoutConfig. Returns the full itinerary.
+export function updateItinerary(
+  id: string,
+  body: { title?: string; layoutConfig?: LayoutConfig },
+): Promise<Itinerary> {
+  return apiRequest<Itinerary>(`/api/itineraries/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+// Validates preconditions server-side, flips status to published, stamps the
+// publish time. Returns the published itinerary.
+export function publishItinerary(id: string): Promise<Itinerary> {
+  return apiRequest<Itinerary>(`/api/itineraries/${id}/publish`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

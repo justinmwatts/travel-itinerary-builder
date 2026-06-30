@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { Box, Button, Flex, Heading, Text, Textarea } from "@chakra-ui/react";
 import { LIMITS, type Destination } from "@travel/shared";
 import { CoverImage } from "../../components/CoverImage";
@@ -124,13 +125,16 @@ function DestinationCard({
 export function ItineraryPanel({
   title,
   destinations,
+  itineraryId,
   onSaveNote,
 }: {
   title: string;
   destinations: Destination[];
+  itineraryId: string | null;
   onSaveNote?: (destId: string, note: string | null) => void;
 }) {
   const hasContent = destinations.length > 0;
+  const canCustomize = Boolean(itineraryId) && hasContent;
 
   return (
     <Flex direction="column" h="100%">
@@ -160,9 +164,15 @@ export function ItineraryPanel({
       </Box>
 
       <Box px="5" py="4" borderTopWidth="1px" borderColor="border">
-        <Button w="100%" variant="outline" borderColor="border" color="fg.subtle" disabled>
-          Customize and publish (Phase 7)
-        </Button>
+        {canCustomize ? (
+          <Button asChild w="100%" bg="ink" color="paper">
+            <RouterLink to={`/build/${itineraryId}/customize`}>Customize and publish</RouterLink>
+          </Button>
+        ) : (
+          <Button w="100%" variant="outline" borderColor="border" color="fg.subtle" disabled>
+            Customize and publish
+          </Button>
+        )}
       </Box>
     </Flex>
   );

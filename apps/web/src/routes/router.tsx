@@ -4,6 +4,7 @@ import { RequireAuth } from "../components/RequireAuth";
 import { FeedPage } from "../features/feed/FeedPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { BuilderPage } from "../features/builder/BuilderPage";
+import { CustomizePage } from "../features/customize/CustomizePage";
 import { MyItinerariesPage } from "../features/me/MyItinerariesPage";
 
 // Data router (design.md D1). Public routes render directly; authed routes are
@@ -28,6 +29,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth>
             <BuilderPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/build/:id/customize",
+        element: (
+          <RequireAuth>
+            <CustomizePage />
           </RequireAuth>
         ),
       },

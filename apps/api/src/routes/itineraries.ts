@@ -175,6 +175,48 @@ itinerariesRouter.patch(
   }),
 );
 
+// POST /api/itineraries/:id/publish -> owner only. Validates the preconditions
+// (non-empty title, at least one destination), flips status to published and
+// stamps publishedAt. 422 if a precondition fails. Re-publishing keeps the
+// original publishedAt so editing a live post does not reorder the feed.
+itinerariesRouter.post(
+  "/:id/publish",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId;
+    if (!userId) throw unauthorized();
+    const id = req.params.id;
+    if (!id) throw notFound("Itinerary not found");
+
+    const existing = await prisma.itinerary.findUnique({
+      where: { id },
+      include: { _count: { select: { destinations: true } } },
+    });
+    if (!existing) throw notFound("Itinerary not found");
+    if (existing.ownerId !== userId) throw forbidden();
+
+    if (existing.title.trim() === "") {
+      throw unprocessable("Add a title before publishing.", "missing_title");
+    }
+    if (existing._count.destinations === 0) {
+      throw unprocessable("Add at least one destination before publishing.", "no_destinations");
+    }
+
+    const data: Prisma.ItineraryUpdateInput = { status: "published" };
+    if (!existing.publishedAt) {
+      data.publishedAt = new Date();
+    }
+
+    const updated = await prisma.itinerary.update({
+      where: { id },
+      data,
+      include: { owner: true, destinations: { orderBy: { order: "asc" } } },
+    });
+    const myReactions = await loadMyReactions(id, userId);
+    res.json(toItineraryDTO(updated, { includeChat: true, myReactions }));
+  }),
+);
+
 // DELETE /api/itineraries/:id -> owner only. Cascades destinations and reactions.
 itinerariesRouter.delete(
   "/:id",
