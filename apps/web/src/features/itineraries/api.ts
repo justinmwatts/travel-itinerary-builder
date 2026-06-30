@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Itinerary, MyItinerariesResponse } from "@travel/shared";
+import type { Destination, Itinerary, MyItinerariesResponse } from "@travel/shared";
 import { apiRequest } from "../../lib/apiClient";
 
 export const myItinerariesKey = ["itineraries", "mine"] as const;
@@ -36,6 +36,18 @@ export function useItinerary(id: string | undefined) {
     queryKey: id ? itineraryKey(id) : ["itinerary", "none"],
     queryFn: () => fetchItinerary(id as string),
     enabled: Boolean(id),
+  });
+}
+
+// Sets the creator note on one destination. Returns the updated destination.
+export function updateDestinationNote(
+  itineraryId: string,
+  destId: string,
+  note: string | null,
+): Promise<Destination> {
+  return apiRequest<Destination>(`/api/itineraries/${itineraryId}/destinations/${destId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
   });
 }
 

@@ -4,6 +4,7 @@ import {
   DEFAULT_LAYOUT_CONFIG,
   LIMITS,
   createItineraryRequestSchema,
+  updateDestinationNoteRequestSchema,
   updateItineraryRequestSchema,
   type ReactionType,
 } from "@travel/shared";
@@ -11,7 +12,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../lib/async-handler";
 import { forbidden, notFound, unauthorized, unprocessable } from "../lib/http-error";
 import { optionalAuth, requireAuth } from "../middleware/auth";
-import { toItineraryDTO, toMyItinerarySummaryDTO } from "../services/serializers";
+import { toDestinationDTO, toItineraryDTO, toMyItinerarySummaryDTO } from "../services/serializers";
 
 export const itinerariesRouter = Router();
 
@@ -139,6 +140,38 @@ itinerariesRouter.patch(
 
     const myReactions = await loadMyReactions(id, userId);
     res.json(toItineraryDTO(updated, { includeChat: true, myReactions }));
+  }),
+);
+
+// PATCH /api/itineraries/:id/destinations/:destId -> sets the creator note on one
+// destination. The only client write path to a destination, so it cannot clobber
+// the AI-owned fields (name, country, description, order) or the image fields.
+itinerariesRouter.patch(
+  "/:id/destinations/:destId",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId;
+    if (!userId) throw unauthorized();
+    const id = req.params.id;
+    const destId = req.params.destId;
+    if (!id || !destId) throw notFound("Destination not found");
+
+    const body = updateDestinationNoteRequestSchema.parse(req.body);
+
+    const itinerary = await prisma.itinerary.findUnique({ where: { id } });
+    if (!itinerary) throw notFound("Itinerary not found");
+    if (itinerary.ownerId !== userId) throw forbidden();
+
+    const destination = await prisma.destination.findUnique({ where: { id: destId } });
+    if (!destination || destination.itineraryId !== id) {
+      throw notFound("Destination not found");
+    }
+
+    const updated = await prisma.destination.update({
+      where: { id: destId },
+      data: { note: body.note },
+    });
+    res.json(toDestinationDTO(updated));
   }),
 );
 

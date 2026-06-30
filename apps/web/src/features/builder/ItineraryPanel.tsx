@@ -1,5 +1,6 @@
-import { Box, Button, Flex, Heading, Text } from "@chakra-ui/react";
-import type { Destination } from "@travel/shared";
+import { useEffect, useState } from "react";
+import { Box, Button, Flex, Heading, Text, Textarea } from "@chakra-ui/react";
+import { LIMITS, type Destination } from "@travel/shared";
 
 // Placeholder cover until Phase 6 resolves real Pexels images with the proper
 // deterministic fallback. For now a neutral block holds the space.
@@ -25,7 +26,86 @@ function CoverPlaceholder({ name }: { name: string }) {
   );
 }
 
-function DestinationCard({ destination, index }: { destination: Destination; index: number }) {
+// Read-only note, visually distinct from the AI description (accent rule + label).
+function NoteDisplay({ note }: { note: string }) {
+  return (
+    <Box mt="2" pl="3" borderLeftWidth="2px" borderColor="accent">
+      <Text textStyle="small" color="fg.muted">
+        <Text as="span" fontWeight="600" color="fg">
+          Note:
+        </Text>{" "}
+        {note}
+      </Text>
+    </Box>
+  );
+}
+
+// Inline editor: click the note (or "Add a note") to edit, autosave on blur.
+// Creator notes are the user's own words, kept separate from AI text.
+function NoteEditor({
+  note,
+  onSave,
+}: {
+  note: string | null;
+  onSave: (note: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(note ?? "");
+
+  // Sync when a refinement changes the note while we are not editing.
+  useEffect(() => {
+    if (!editing) setValue(note ?? "");
+  }, [note, editing]);
+
+  function commit() {
+    setEditing(false);
+    const normalized = value.trim() === "" ? null : value.trim();
+    if (normalized !== (note ?? null)) onSave(normalized);
+  }
+
+  if (editing) {
+    return (
+      <Box mt="2">
+        <Textarea
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          placeholder="Your own note for this stop, kept separate from the AI text..."
+          rows={2}
+          resize="vertical"
+          bg="bg.surface"
+          borderColor="border"
+          maxLength={LIMITS.noteMax}
+        />
+      </Box>
+    );
+  }
+
+  if (note) {
+    return (
+      <Box cursor="text" onClick={() => setEditing(true)} role="button" aria-label="Edit note">
+        <NoteDisplay note={note} />
+      </Box>
+    );
+  }
+
+  return (
+    <Button mt="2" size="xs" variant="ghost" color="accent" onClick={() => setEditing(true)}>
+      + Add a note
+    </Button>
+  );
+}
+
+function DestinationCard({
+  destination,
+  index,
+  onSaveNote,
+}: {
+  destination: Destination;
+  index: number;
+  onSaveNote?: (destId: string, note: string | null) => void;
+}) {
   return (
     <Box borderBottomWidth="1px" borderColor="border" py="4">
       <Flex gap="3">
@@ -43,12 +123,13 @@ function DestinationCard({ destination, index }: { destination: Destination; ind
           <Text textStyle="body" color="fg" mt="1">
             {destination.description}
           </Text>
-          {destination.note ? (
-            <Box mt="2" pl="3" borderLeftWidth="2px" borderColor="accent">
-              <Text textStyle="small" color="fg.muted">
-                Note: {destination.note}
-              </Text>
-            </Box>
+          {onSaveNote ? (
+            <NoteEditor
+              note={destination.note}
+              onSave={(note) => onSaveNote(destination.id, note)}
+            />
+          ) : destination.note ? (
+            <NoteDisplay note={destination.note} />
           ) : null}
         </Box>
       </Flex>
@@ -59,9 +140,11 @@ function DestinationCard({ destination, index }: { destination: Destination; ind
 export function ItineraryPanel({
   title,
   destinations,
+  onSaveNote,
 }: {
   title: string;
   destinations: Destination[];
+  onSaveNote?: (destId: string, note: string | null) => void;
 }) {
   const hasContent = destinations.length > 0;
 
@@ -80,7 +163,9 @@ export function ItineraryPanel({
 
       <Box flex="1" overflowY="auto" px="5">
         {hasContent ? (
-          destinations.map((d, i) => <DestinationCard key={d.id} destination={d} index={i} />)
+          destinations.map((d, i) => (
+            <DestinationCard key={d.id} destination={d} index={i} onSaveNote={onSaveNote} />
+          ))
         ) : (
           <Flex h="100%" align="center" justify="center" py="16">
             <Text textStyle="body" color="fg.muted" textAlign="center" maxW="320px">

@@ -4,7 +4,7 @@ import { Box, Button, Circle, Flex, HStack, Spinner } from "@chakra-ui/react";
 import { useChatStore } from "../../stores/chatStore";
 import { streamChat } from "../../lib/sse";
 import { useMe } from "../auth/api";
-import { createItinerary, useItinerary } from "../itineraries/api";
+import { createItinerary, updateDestinationNote, useItinerary } from "../itineraries/api";
 import { ChatPanel } from "./ChatPanel";
 import { ItineraryPanel } from "./ItineraryPanel";
 
@@ -127,6 +127,16 @@ export function BuilderPage() {
     if (last) void runTurn(last, true);
   }, [runTurn]);
 
+  // Optimistic note save: update the visible panel immediately, then persist.
+  const handleSaveNote = useCallback((destId: string, note: string | null) => {
+    const itineraryId = useChatStore.getState().itineraryId;
+    if (!itineraryId) return;
+    useChatStore.getState().setDestinationNote(destId, note);
+    void updateDestinationNote(itineraryId, destId, note).catch(() => {
+      // Keep the optimistic value; a transient failure should not lose the text.
+    });
+  }, []);
+
   // Resuming: hold with a spinner until the draft is loaded and hydrated.
   if (id && (loadingDraft || (!hydratedRef.current && !loadError))) {
     return (
@@ -178,7 +188,7 @@ export function BuilderPage() {
           h="100%"
           display={{ base: mobileTab === "itinerary" ? "block" : "none", md: "block" }}
         >
-          <ItineraryPanel title={title} destinations={destinations} />
+          <ItineraryPanel title={title} destinations={destinations} onSaveNote={handleSaveNote} />
         </Box>
       </Flex>
     </Flex>

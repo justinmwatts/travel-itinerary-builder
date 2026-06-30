@@ -34,6 +34,7 @@ interface ChatState {
   retryStart: () => void;
   appendToken: (delta: string) => void;
   setItinerary: (title: string, destinations: Destination[]) => void;
+  setDestinationNote: (destId: string, note: string | null) => void;
   finishTurn: () => void;
   failTurn: (message: string) => void;
   reset: () => void;
@@ -89,6 +90,11 @@ export const useChatStore = create<ChatState>((set) => ({
   appendToken: (delta) => set((s) => ({ streamingText: s.streamingText + delta })),
 
   setItinerary: (title, destinations) => set({ title, destinations }),
+
+  setDestinationNote: (destId, note) =>
+    set((s) => ({
+      destinations: s.destinations.map((d) => (d.id === destId ? { ...d, note } : d)),
+    })),
 
   finishTurn: () =>
     set((s) => {
