@@ -24,6 +24,12 @@ interface ChatState {
   lastUserMessage: string | null;
 
   setItineraryId: (id: string) => void;
+  hydrate: (data: {
+    itineraryId: string;
+    title: string;
+    destinations: Destination[];
+    messages: DisplayMessage[];
+  }) => void;
   startTurn: (userText: string) => void;
   retryStart: () => void;
   appendToken: (delta: string) => void;
@@ -54,6 +60,19 @@ export const useChatStore = create<ChatState>((set) => ({
   ...initialState,
 
   setItineraryId: (id) => set({ itineraryId: id }),
+
+  // Load a persisted draft into the builder so the user can resume it.
+  hydrate: (data) =>
+    set({
+      itineraryId: data.itineraryId,
+      title: data.title,
+      destinations: data.destinations,
+      messages: data.messages,
+      streamingText: "",
+      status: "idle",
+      errorMessage: null,
+      lastUserMessage: null,
+    }),
 
   startTurn: (userText) =>
     set((s) => ({

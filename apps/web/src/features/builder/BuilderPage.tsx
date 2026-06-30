@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Button, Circle, Flex, HStack } from "@chakra-ui/react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Box, Button, Circle, Flex, HStack, Spinner } from "@chakra-ui/react";
 import { useChatStore } from "../../stores/chatStore";
 import { streamChat } from "../../lib/sse";
-import { createDraft } from "./api";
+import { useMe } from "../auth/api";
+import { createItinerary, useItinerary } from "../itineraries/api";
 import { ChatPanel } from "./ChatPanel";
 import { ItineraryPanel } from "./ItineraryPanel";
 
@@ -38,6 +40,11 @@ function TabButton({
 }
 
 export function BuilderPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { data: me } = useMe();
+  const { data: loaded, isPending: loadingDraft, isError: loadError } = useItinerary(id);
+
   const title = useChatStore((s) => s.title);
   const destinations = useChatStore((s) => s.destinations);
   const messages = useChatStore((s) => s.messages);
@@ -50,21 +57,50 @@ export function BuilderPage() {
   const mobileTabRef = useRef<MobileTab>(mobileTab);
   mobileTabRef.current = mobileTab;
 
+  const hydratedRef = useRef(false);
+
   // Ephemeral builder state resets when leaving the flow.
   useEffect(() => () => useChatStore.getState().reset(), []);
+
+  // Resuming a persisted draft: hydrate the store once it loads. A draft that
+  // is missing or not the caller's sends them back to /me.
+  useEffect(() => {
+    if (!id || hydratedRef.current) return;
+    if (loadError) {
+      navigate("/me", { replace: true });
+      return;
+    }
+    if (!loaded) return;
+    if (me && loaded.ownerId !== me.id) {
+      navigate("/me", { replace: true });
+      return;
+    }
+    hydratedRef.current = true;
+    useChatStore.getState().hydrate({
+      itineraryId: loaded.id,
+      title: loaded.title,
+      destinations: loaded.destinations,
+      messages: (loaded.chatMessages ?? []).map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        incomplete: m.incomplete,
+      })),
+    });
+  }, [id, loaded, loadError, me, navigate]);
 
   const runTurn = useCallback(async (userText: string, isRetry: boolean) => {
     const store = useChatStore.getState();
     if (isRetry) store.retryStart();
     else store.startTurn(userText);
 
-    // Lazily create the draft on the first message.
-    let id = useChatStore.getState().itineraryId;
-    if (!id) {
+    // Lazily create the draft on the first message (new builder only).
+    let itineraryId = useChatStore.getState().itineraryId;
+    if (!itineraryId) {
       try {
-        const draft = await createDraft();
-        id = draft.id;
-        useChatStore.getState().setItineraryId(id);
+        const draft = await createItinerary();
+        itineraryId = draft.id;
+        useChatStore.getState().setItineraryId(itineraryId);
       } catch {
         useChatStore.getState().failTurn("Could not start a new draft. Try again.");
         return;
@@ -72,7 +108,7 @@ export function BuilderPage() {
     }
 
     await streamChat(
-      { itineraryId: id, userMessage: userText },
+      { itineraryId, userMessage: userText },
       {
         onToken: (delta) => useChatStore.getState().appendToken(delta),
         onItinerary: (t, ds) => {
@@ -90,6 +126,15 @@ export function BuilderPage() {
     const last = useChatStore.getState().lastUserMessage;
     if (last) void runTurn(last, true);
   }, [runTurn]);
+
+  // Resuming: hold with a spinner until the draft is loaded and hydrated.
+  if (id && (loadingDraft || (!hydratedRef.current && !loadError))) {
+    return (
+      <Flex h="calc(100dvh - 64px)" align="center" justify="center">
+        <Spinner color="accent" />
+      </Flex>
+    );
+  }
 
   return (
     <Flex direction="column" h="calc(100dvh - 64px)">
