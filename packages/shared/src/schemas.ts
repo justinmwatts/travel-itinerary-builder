@@ -280,7 +280,13 @@ export type SseErrorCode = z.infer<typeof sseErrorCodeSchema>;
 export const sseTokenSchema = z.object({ delta: z.string() });
 export type SseToken = z.infer<typeof sseTokenSchema>;
 
-export const sseItinerarySchema = z.object({ destinations: z.array(destinationSchema) });
+// The structured update after reconciliation. Carries the title (the model sets
+// it via set_itinerary and the live panel displays it) plus the merged
+// destinations; imageUrl may still be null at this point.
+export const sseItinerarySchema = z.object({
+  title: z.string(),
+  destinations: z.array(destinationSchema),
+});
 export type SseItinerary = z.infer<typeof sseItinerarySchema>;
 
 export const sseImageUpdateSchema = z.object({
