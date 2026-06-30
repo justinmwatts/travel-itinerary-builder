@@ -3,6 +3,7 @@ import { imageQuerySchema, imageResultSchema } from "@travel/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { notFound } from "../lib/http-error";
 import { requireAuth } from "../middleware/auth";
+import { imageRateLimit } from "../middleware/rateLimit";
 import { resolvePexelsImage } from "../services/pexels";
 
 export const imagesRouter = Router();
@@ -12,6 +13,7 @@ export const imagesRouter = Router();
 imagesRouter.get(
   "/",
   requireAuth,
+  imageRateLimit,
   asyncHandler(async (req, res) => {
     const { q } = imageQuerySchema.parse(req.query);
     const image = await resolvePexelsImage(q);

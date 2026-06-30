@@ -1,16 +1,30 @@
+import { lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { RootLayout } from "./RootLayout";
 import { RequireAuth } from "../components/RequireAuth";
-import { FeedPage } from "../features/feed/FeedPage";
-import { LoginPage } from "../features/auth/LoginPage";
-import { BuilderPage } from "../features/builder/BuilderPage";
-import { CustomizePage } from "../features/customize/CustomizePage";
-import { DetailPage } from "../features/detail/DetailPage";
-import { MyItinerariesPage } from "../features/me/MyItinerariesPage";
 
-// Data router (design.md D1). Public routes render directly; authed routes are
-// wrapped in RequireAuth. The remaining screens (build/:id, customize, detail)
-// are added in their phases.
+// Route-level code splitting (design.md section 15). The chat builder, customize
+// editor and the rest load on demand, so the initial bundle stays small. The
+// Anthropic SDK lives only on the server and adds zero client weight.
+const FeedPage = lazy(() =>
+  import("../features/feed/FeedPage").then((m) => ({ default: m.FeedPage })),
+);
+const LoginPage = lazy(() =>
+  import("../features/auth/LoginPage").then((m) => ({ default: m.LoginPage })),
+);
+const DetailPage = lazy(() =>
+  import("../features/detail/DetailPage").then((m) => ({ default: m.DetailPage })),
+);
+const BuilderPage = lazy(() =>
+  import("../features/builder/BuilderPage").then((m) => ({ default: m.BuilderPage })),
+);
+const CustomizePage = lazy(() =>
+  import("../features/customize/CustomizePage").then((m) => ({ default: m.CustomizePage })),
+);
+const MyItinerariesPage = lazy(() =>
+  import("../features/me/MyItinerariesPage").then((m) => ({ default: m.MyItinerariesPage })),
+);
+
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,

@@ -16,6 +16,7 @@ import { CoverImage } from "../../components/CoverImage";
 import { PexelsCredit } from "../../components/PexelsCredit";
 import { ReactionBar } from "../../components/ReactionBar";
 import { densityStyle, objectFitFor, objectPositionFor } from "../../lib/layoutStyles";
+import { sanitizeText } from "../../lib/sanitize";
 import { useMe } from "../auth/api";
 import { useItinerary } from "../itineraries/api";
 import { useReactionToggle } from "../reactions/api";
@@ -45,9 +46,9 @@ function DestinationBlock({
       transition="background 200ms ease-out"
     >
       <Heading textStyle="display-md" mb="3">
-        {index + 1}. {destination.name}
+        {index + 1}. {sanitizeText(destination.name)}
         <Text as="span" textStyle="small" color="fg.muted" ml="3">
-          {destination.country}
+          {sanitizeText(destination.country)}
         </Text>
       </Heading>
 
@@ -68,7 +69,7 @@ function DestinationBlock({
         mt="4"
         style={{ fontSize: density.fontSize, lineHeight: density.lineHeight }}
       >
-        {destination.description}
+        {sanitizeText(destination.description)}
       </Text>
 
       {destination.note ? (
@@ -77,7 +78,7 @@ function DestinationBlock({
             <Text as="span" fontWeight="600" color="fg">
               Creator note:
             </Text>{" "}
-            {destination.note}
+            {sanitizeText(destination.note)}
           </Text>
         </Box>
       ) : null}
@@ -139,11 +140,13 @@ export function DetailPage() {
         ) : null}
       </Flex>
 
-      <Heading textStyle="display-lg">{itinerary.title || "Untitled itinerary"}</Heading>
+      <Heading textStyle="display-lg">
+        {sanitizeText(itinerary.title) || "Untitled itinerary"}
+      </Heading>
       <Flex align="center" justify="space-between" mt="2" gap="4" wrap="wrap">
         <Text textStyle="small" color="fg.muted">
           {itinerary.destinations.length} {itinerary.destinations.length === 1 ? "stop" : "stops"} ·
-          by {itinerary.author.displayName}
+          by {sanitizeText(itinerary.author.displayName)}
         </Text>
         <ReactionBar
           heartCount={itinerary.heartCount}

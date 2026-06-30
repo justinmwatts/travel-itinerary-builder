@@ -1,6 +1,7 @@
 import { Box, Heading, Text } from "@chakra-ui/react";
 import type { Destination, LayoutConfig } from "@travel/shared";
 import { CoverImage } from "../../components/CoverImage";
+import { sanitizeText } from "../../lib/sanitize";
 import {
   clampStyle,
   coverHeight,
@@ -52,9 +53,10 @@ export function LayoutPreview({
         )}
       </Box>
       <Box p="4">
-        <Heading textStyle="title">{title || "Untitled itinerary"}</Heading>
+        <Heading textStyle="title">{sanitizeText(title) || "Untitled itinerary"}</Heading>
         <Text textStyle="small" color="fg.muted" mt="1">
-          {destinations.length} {destinations.length === 1 ? "stop" : "stops"} · by {author}
+          {destinations.length} {destinations.length === 1 ? "stop" : "stops"} ·{" "}
+          {`by ${sanitizeText(author)}`}
         </Text>
         {first ? (
           <Text
@@ -66,7 +68,7 @@ export function LayoutPreview({
               ...clampStyle(density.clamp),
             }}
           >
-            {first.description}
+            {sanitizeText(first.description)}
           </Text>
         ) : null}
         {first?.note ? (
@@ -75,7 +77,7 @@ export function LayoutPreview({
               <Text as="span" fontWeight="600" color="fg">
                 Note:
               </Text>{" "}
-              {first.note}
+              {sanitizeText(first.note)}
             </Text>
           </Box>
         ) : null}

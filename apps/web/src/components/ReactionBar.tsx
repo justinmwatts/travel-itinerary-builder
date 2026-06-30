@@ -53,7 +53,9 @@ export function ReactionBar({
         disabled={disabled}
         aria-pressed={active}
         aria-label={`${active ? "Remove" : "Add"} ${type} reaction`}
+        transition="transform 120ms ease-out, color 120ms ease-out"
         _hover={{ color: activeColor }}
+        _active={{ transform: "scale(0.85)" }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();

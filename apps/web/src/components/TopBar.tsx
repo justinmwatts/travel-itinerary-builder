@@ -27,13 +27,26 @@ export function TopBar() {
     >
       <Flex maxW="1100px" mx="auto" h="64px" px={{ base: "4", md: "6" }} align="center" gap="3">
         <RouterLink to="/">
-          <Heading textStyle="title" color="fg">
-            TravelItineraryBuilder
+          <Heading textStyle="title" color="fg" lineClamp={1}>
+            <Box as="span" display={{ base: "none", sm: "inline" }}>
+              TravelItineraryBuilder
+            </Box>
+            <Box as="span" display={{ base: "inline", sm: "none" }}>
+              TIB
+            </Box>
           </Heading>
         </RouterLink>
         <Spacer />
-        <Button asChild variant="outline" size="sm" borderColor="border" color="fg">
-          <RouterLink to="/build">Create</RouterLink>
+        {/* Compact "+ New" on mobile, full "Create" from sm up. */}
+        <Button asChild variant="outline" size="sm" borderColor="border" color="fg" flexShrink="0">
+          <RouterLink to="/build">
+            <Box as="span" display={{ base: "none", sm: "inline" }}>
+              Create
+            </Box>
+            <Box as="span" display={{ base: "inline", sm: "none" }}>
+              + New
+            </Box>
+          </RouterLink>
         </Button>
         {me ? (
           <Menu.Root>

@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../lib/async-handler";
 import { conflict, unauthorized } from "../lib/http-error";
 import { requireAuth } from "../middleware/auth";
+import { authRateLimit } from "../middleware/rateLimit";
 import { clearAuthCookie, setAuthCookie, signToken, toUserDTO } from "../services/auth";
 
 const BCRYPT_ROUNDS = 10;
@@ -15,6 +16,7 @@ export const authRouter = Router();
 // duplicate email, 422 on schema failure (e.g. password too short).
 authRouter.post(
   "/signup",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const body = signupRequestSchema.parse(req.body);
     const email = body.email.toLowerCase();
@@ -38,6 +40,7 @@ authRouter.post(
 // bad credentials, with one generic message to avoid user enumeration.
 authRouter.post(
   "/login",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const body = loginRequestSchema.parse(req.body);
     const email = body.email.toLowerCase();

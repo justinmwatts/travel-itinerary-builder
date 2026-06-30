@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Box, Button, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import type { MyItinerarySummary } from "@travel/shared";
+import { sanitizeText } from "../../lib/sanitize";
 import { useDeleteItinerary, useMyItineraries } from "../itineraries/api";
 
 function ItineraryRow({
@@ -31,7 +32,7 @@ function ItineraryRow({
     >
       <Box minW="0">
         <Heading textStyle="title" truncate>
-          {item.title || "Untitled itinerary"}
+          {sanitizeText(item.title) || "Untitled itinerary"}
         </Heading>
         <HStack gap="3" mt="1">
           <Text textStyle="small" color="fg.muted">

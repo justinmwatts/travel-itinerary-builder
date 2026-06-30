@@ -14,6 +14,7 @@ import {
 import { asyncHandler } from "../lib/async-handler";
 import { forbidden, notFound, unauthorized } from "../lib/http-error";
 import { requireAuth } from "../middleware/auth";
+import { chatRateLimit } from "../middleware/rateLimit";
 import { toDestinationDTO } from "../services/serializers";
 import {
   buildAnthropicMessages,
@@ -56,6 +57,7 @@ function mapStreamError(err: unknown): { message: string; code: SseErrorCode } {
 chatRouter.post(
   "/",
   requireAuth,
+  chatRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.userId;
     if (!userId) throw unauthorized();

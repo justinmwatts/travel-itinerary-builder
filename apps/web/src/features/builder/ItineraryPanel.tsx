@@ -3,6 +3,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { Box, Button, Flex, Heading, Text, Textarea } from "@chakra-ui/react";
 import { LIMITS, type Destination } from "@travel/shared";
 import { CoverImage } from "../../components/CoverImage";
+import { sanitizeText } from "../../lib/sanitize";
 
 // Read-only note, visually distinct from the AI description (accent rule + label).
 function NoteDisplay({ note }: { note: string }) {
@@ -12,7 +13,7 @@ function NoteDisplay({ note }: { note: string }) {
         <Text as="span" fontWeight="600" color="fg">
           Note:
         </Text>{" "}
-        {note}
+        {sanitizeText(note)}
       </Text>
     </Box>
   );
@@ -100,13 +101,13 @@ function DestinationCard({
             {index + 1}
           </Text>
           <Heading textStyle="title">
-            {destination.name}
+            {sanitizeText(destination.name)}
             <Text as="span" textStyle="small" color="fg.muted" ml="2">
-              {destination.country}
+              {sanitizeText(destination.country)}
             </Text>
           </Heading>
           <Text textStyle="body" color="fg" mt="1">
-            {destination.description}
+            {sanitizeText(destination.description)}
           </Text>
           {onSaveNote ? (
             <NoteEditor
@@ -146,7 +147,7 @@ export function ItineraryPanel({
         borderBottomWidth="1px"
         borderColor="border"
       >
-        <Heading textStyle="display-md">{title || "Untitled itinerary"}</Heading>
+        <Heading textStyle="display-md">{sanitizeText(title) || "Untitled itinerary"}</Heading>
       </Flex>
 
       <Box flex="1" overflowY="auto" px="5">

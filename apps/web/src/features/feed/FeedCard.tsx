@@ -4,6 +4,7 @@ import type { FeedItem } from "@travel/shared";
 import { CoverImage } from "../../components/CoverImage";
 import { ReactionBar } from "../../components/ReactionBar";
 import { coverHeight, objectFitFor, objectPositionFor } from "../../lib/layoutStyles";
+import { sanitizeText } from "../../lib/sanitize";
 import { useReactionToggle } from "../reactions/api";
 
 export function FeedCard({ item }: { item: FeedItem }) {
@@ -42,11 +43,11 @@ export function FeedCard({ item }: { item: FeedItem }) {
         </Box>
         <Box p="4">
           <Heading textStyle="title" lineClamp={1}>
-            {item.title || "Untitled itinerary"}
+            {sanitizeText(item.title) || "Untitled itinerary"}
           </Heading>
           <Text textStyle="small" color="fg.muted" mt="1">
             {item.stopCount} {item.stopCount === 1 ? "stop" : "stops"} · by{" "}
-            {item.author.displayName}
+            {sanitizeText(item.author.displayName)}
           </Text>
           <Box mt="3">
             <ReactionBar
