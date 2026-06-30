@@ -1,18 +1,28 @@
+import { env } from "./config/env";
 import express from "express";
-import { LIMITS } from "@travel/shared";
-
-// Minimal Express server with a health route that reads a value from the shared
-// contract, proving the workspace import resolves at runtime. Routes,
-// middleware, auth, chat and the image proxy arrive in later phases per
-// design.md section 17.
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import { authRouter } from "./routes/auth";
+import { errorHandler } from "./middleware/error";
 
 const app = express();
-const PORT = Number(process.env.PORT ?? 4000);
+
+// CORS locked to the web origin with credentials enabled for the session
+// cookie. JSON bodies and cookies are parsed before any route runs.
+app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
+app.use(express.json());
+app.use(cookieParser());
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", maxDestinations: LIMITS.maxDestinationsPerItinerary });
+  res.json({ status: "ok" });
 });
 
-app.listen(PORT, () => {
-  console.log(`api listening on http://localhost:${PORT}`);
+app.use("/api/auth", authRouter);
+
+// Error handler is registered last so thrown errors and rejected async handlers
+// land here.
+app.use(errorHandler);
+
+app.listen(env.PORT, () => {
+  console.log(`api listening on http://localhost:${env.PORT}`);
 });

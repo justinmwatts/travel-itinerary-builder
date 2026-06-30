@@ -26,6 +26,16 @@ export default tseslint.config(
     files: ["**/*.{ts,tsx}"],
     rules: {
       "no-undef": "off",
+      // Allow intentionally-unused identifiers prefixed with `_`, matching tsc.
+      // Needed for Express error handlers, which require a 4th `next` arg.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   {
