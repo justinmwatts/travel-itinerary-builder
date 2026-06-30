@@ -5,11 +5,13 @@ import type {
 } from "@prisma/client";
 import {
   destinationSchema,
+  feedItemSchema,
   itinerarySchema,
   layoutConfigSchema,
   myItinerarySummarySchema,
   type ChatMessage,
   type Destination,
+  type FeedItem,
   type Itinerary,
   type MyItinerarySummary,
   type ReactionType,
@@ -70,6 +72,38 @@ export function toItineraryDTO(
     createdAt: it.createdAt.toISOString(),
     updatedAt: it.updatedAt.toISOString(),
     publishedAt: it.publishedAt ? it.publishedAt.toISOString() : null,
+  });
+}
+
+// Feed card. The cover is the first destination; matchedDestinationIds are the
+// stops that matched the search query (for highlight on open).
+export function toFeedItemDTO(
+  it: ItineraryWithRelations,
+  opts: { matchedDestinationIds: string[]; myReactions: ReactionType[] },
+): FeedItem {
+  const first = it.destinations[0];
+  const cover = first
+    ? {
+        name: first.name,
+        imageUrl: first.imageUrl,
+        imageAlt: first.imageAlt,
+        imageCredit: first.imageCredit,
+        imageCreditUrl: first.imageCreditUrl,
+      }
+    : null;
+
+  return feedItemSchema.parse({
+    id: it.id,
+    title: it.title,
+    author: { id: it.owner.id, displayName: it.owner.displayName },
+    stopCount: it.destinations.length,
+    cover,
+    layoutConfig: layoutConfigSchema.parse(JSON.parse(it.layoutConfig)),
+    heartCount: it.heartCount,
+    likeCount: it.likeCount,
+    matchedDestinationIds: opts.matchedDestinationIds,
+    myReactions: opts.myReactions,
+    publishedAt: (it.publishedAt ?? it.updatedAt).toISOString(),
   });
 }
 

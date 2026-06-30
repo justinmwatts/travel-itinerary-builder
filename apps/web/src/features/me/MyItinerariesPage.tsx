@@ -62,6 +62,11 @@ function ItineraryRow({
           <Button asChild size="sm" variant="outline" borderColor="border" color="fg">
             <RouterLink to={`/build/${item.id}`}>{isDraft ? "Resume" : "Edit"}</RouterLink>
           </Button>
+          {!isDraft ? (
+            <Button asChild size="sm" variant="outline" borderColor="border" color="fg">
+              <RouterLink to={`/itinerary/${item.id}`}>View</RouterLink>
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"

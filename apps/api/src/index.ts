@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { authRouter } from "./routes/auth";
 import { chatRouter } from "./routes/chat";
+import { feedRouter } from "./routes/feed";
 import { imagesRouter } from "./routes/images";
 import { itinerariesRouter } from "./routes/itineraries";
 import { errorHandler } from "./middleware/error";
@@ -24,6 +25,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/itineraries", itinerariesRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/images", imagesRouter);
+app.use("/api/feed", feedRouter);
 
 // Error handler is registered last so thrown errors and rejected async handlers
 // land here.

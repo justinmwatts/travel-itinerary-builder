@@ -62,7 +62,7 @@ export function CustomizePage() {
     try {
       await updateItinerary(id, { title: titleInput.trim(), layoutConfig: config });
       if (isDraft) await publishItinerary(id);
-      navigate("/me");
+      navigate(`/itinerary/${id}`);
     } catch {
       setError(isDraft ? "Could not publish. Try again." : "Could not save. Try again.");
       setSubmitting(false);
