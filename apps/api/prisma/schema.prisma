@@ -1,8 +1,11 @@
-// Prisma schema. SQLite for v1 (design.md D8). Stays engine-neutral so the
-// Postgres swap is a one-line provider change: avoid `mode: "insensitive"` and
-// match on a normalized lowercase `searchText` field instead.
-//
-// The data model (User, Itinerary, Destination, Reaction) lands in Phase 1.
+// Prisma schema matching design.md section 6. SQLite for v1 (design.md D8),
+// kept engine-neutral so the Postgres swap is a one-line provider change:
+//   - status and reaction type are String, constrained by zod at the app layer
+//     (SQLite has no native enums).
+//   - layoutConfig and chatMessages are JSON stored as String, read whole and
+//     parsed with zod (SQLite has no native JSON type). Never queried inside.
+//   - search matches a normalized lowercase `searchText` field, no
+//     `mode: "insensitive"`.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,4 +14,70 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime    @default(now())
+  itineraries  Itinerary[]
+  reactions    Reaction[]
+}
+
+model Itinerary {
+  id           String        @id @default(cuid())
+  ownerId      String
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title        String        @default("")
+  status       String        @default("draft") // "draft" | "published" (zod-enforced)
+  layoutConfig String // JSON LayoutConfig, written by the app on create
+  chatMessages String        @default("[]") // JSON ChatMessage[]
+  // Reaction counts denormalized onto the itinerary for the feed hot path,
+  // updated on each reaction write to avoid an N+1 (design.md section 6).
+  heartCount   Int           @default(0)
+  likeCount    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  publishedAt  DateTime?
+  destinations Destination[]
+  reactions    Reaction[]
+
+  // Keyset order for the feed.
+  @@index([publishedAt, id])
+}
+
+model Destination {
+  id             String    @id @default(cuid())
+  itineraryId    String
+  itinerary      Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  order          Int
+  name           String
+  country        String
+  searchText     String // lowercased, accent-folded "name country" for search
+  description    String // AI generated
+  note           String? // creator written
+  imageUrl       String? // resolved by the Pexels proxy
+  imageAlt       String?
+  imageCredit    String? // photographer name
+  imageCreditUrl String? // Pexels photo page
+
+  @@index([itineraryId])
+  @@index([searchText])
+}
+
+model Reaction {
+  id          String    @id @default(cuid())
+  itineraryId String
+  itinerary   Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String // "like" | "heart" (zod-enforced)
+  createdAt   DateTime  @default(now())
+
+  // One reaction of each type per user per itinerary, so a toggle cannot
+  // double-count.
+  @@unique([itineraryId, userId, type])
+  @@index([itineraryId])
 }
