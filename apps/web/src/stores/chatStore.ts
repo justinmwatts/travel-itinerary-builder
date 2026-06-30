@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Destination } from "@travel/shared";
+import type { Destination, SseImageUpdate } from "@travel/shared";
 
 // Zustand owns only ephemeral UI state for the builder: the in-flight chat
 // conversation, the streaming buffer, and the live itinerary mirror. The durable
@@ -34,6 +34,7 @@ interface ChatState {
   retryStart: () => void;
   appendToken: (delta: string) => void;
   setItinerary: (title: string, destinations: Destination[]) => void;
+  applyImageUpdates: (updates: SseImageUpdate[]) => void;
   setDestinationNote: (destId: string, note: string | null) => void;
   finishTurn: () => void;
   failTurn: (message: string) => void;
@@ -90,6 +91,27 @@ export const useChatStore = create<ChatState>((set) => ({
   appendToken: (delta) => set((s) => ({ streamingText: s.streamingText + delta })),
 
   setItinerary: (title, destinations) => set({ title, destinations }),
+
+  // Covers arrive after the itinerary event; patch only the resolved stops so
+  // unchanged covers never flicker.
+  applyImageUpdates: (updates) =>
+    set((s) => {
+      const byId = new Map(updates.map((u) => [u.destId, u]));
+      return {
+        destinations: s.destinations.map((d) => {
+          const u = byId.get(d.id);
+          return u
+            ? {
+                ...d,
+                imageUrl: u.imageUrl,
+                imageAlt: u.imageAlt,
+                imageCredit: u.imageCredit,
+                imageCreditUrl: u.imageCreditUrl,
+              }
+            : d;
+        }),
+      };
+    }),
 
   setDestinationNote: (destId, note) =>
     set((s) => ({

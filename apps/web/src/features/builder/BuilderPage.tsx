@@ -115,6 +115,7 @@ export function BuilderPage() {
           useChatStore.getState().setItinerary(t, ds);
           if (mobileTabRef.current === "chat") setItineraryUpdated(true);
         },
+        onImages: (updates) => useChatStore.getState().applyImageUpdates(updates),
         onDone: () => useChatStore.getState().finishTurn(),
         onError: (message) => useChatStore.getState().failTurn(message),
       },

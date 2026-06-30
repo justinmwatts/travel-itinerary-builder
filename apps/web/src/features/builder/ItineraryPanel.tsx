@@ -1,30 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Button, Flex, Heading, Text, Textarea } from "@chakra-ui/react";
 import { LIMITS, type Destination } from "@travel/shared";
-
-// Placeholder cover until Phase 6 resolves real Pexels images with the proper
-// deterministic fallback. For now a neutral block holds the space.
-function CoverPlaceholder({ name }: { name: string }) {
-  const initial = name.trim()[0]?.toUpperCase() ?? "?";
-  return (
-    <Flex
-      w="72px"
-      h="72px"
-      flexShrink="0"
-      rounded="md"
-      bg="paper"
-      borderWidth="1px"
-      borderColor="border"
-      align="center"
-      justify="center"
-      color="fg.subtle"
-      fontFamily="heading"
-      fontSize="xl"
-    >
-      {initial}
-    </Flex>
-  );
-}
+import { CoverImage } from "../../components/CoverImage";
 
 // Read-only note, visually distinct from the AI description (accent rule + label).
 function NoteDisplay({ note }: { note: string }) {
@@ -109,7 +86,14 @@ function DestinationCard({
   return (
     <Box borderBottomWidth="1px" borderColor="border" py="4">
       <Flex gap="3">
-        <CoverPlaceholder name={destination.name} />
+        <Box w="72px" h="72px" flexShrink="0">
+          <CoverImage
+            name={destination.name}
+            imageUrl={destination.imageUrl}
+            imageAlt={destination.imageAlt}
+            credit={destination.imageCredit}
+          />
+        </Box>
         <Box flex="1">
           <Text textStyle="small" color="fg.muted">
             {index + 1}

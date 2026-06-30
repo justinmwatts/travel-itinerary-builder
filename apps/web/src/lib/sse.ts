@@ -1,4 +1,4 @@
-import type { ChatRequest, Destination } from "@travel/shared";
+import type { ChatRequest, Destination, SseImageUpdate } from "@travel/shared";
 
 // SSE over POST. EventSource only does GET, and the chat turn is a POST whose
 // body is the new user message, so we read the streamed response with a fetch
@@ -6,6 +6,7 @@ import type { ChatRequest, Destination } from "@travel/shared";
 export interface ChatStreamHandlers {
   onToken: (delta: string) => void;
   onItinerary: (title: string, destinations: Destination[]) => void;
+  onImages: (updates: SseImageUpdate[]) => void;
   onDone: (messageId: string) => void;
   onError: (message: string, code: string) => void;
 }
@@ -106,6 +107,16 @@ function dispatchFrame(frame: string, handlers: ChatStreamHandlers): void {
           ? (data as { destinations: Destination[] }).destinations
           : [];
       handlers.onItinerary(title, destinations);
+      break;
+    }
+    case "images": {
+      const updates =
+        typeof data === "object" &&
+        data !== null &&
+        Array.isArray((data as { updates?: unknown }).updates)
+          ? (data as { updates: SseImageUpdate[] }).updates
+          : [];
+      handlers.onImages(updates);
       break;
     }
     case "done":

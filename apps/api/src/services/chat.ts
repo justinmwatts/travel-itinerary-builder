@@ -5,9 +5,11 @@ import {
   normalizeName,
   type AiDestination,
   type ChatMessage,
+  type SseImageUpdate,
 } from "@travel/shared";
 import { prisma } from "../lib/prisma";
 import { SYSTEM_PROMPT } from "../config/anthropic";
+import { resolvePexelsImage } from "./pexels";
 
 // Cap the transcript sent upstream. Older turns would be summarized for full
 // cost control (design.md section 8); that summarization is deferred to a later
@@ -169,6 +171,44 @@ export async function reconcileDestinations(
     orderBy: { order: "asc" },
   });
   return { destinations, resolveImageIds };
+}
+
+// Resolve covers for the given destination ids only (new or country-changed
+// stops), persist the image fields, and return the SSE updates. Runs after the
+// itinerary event so the itinerary renders immediately with placeholders; a miss
+// leaves the stop on its deterministic fallback and emits no update.
+export async function resolveCovers(
+  destinations: PrismaDestination[],
+  ids: string[],
+): Promise<SseImageUpdate[]> {
+  const byId = new Map(destinations.map((d) => [d.id, d]));
+  const updates: SseImageUpdate[] = [];
+
+  for (const id of ids) {
+    const dest = byId.get(id);
+    if (!dest) continue;
+    const image = await resolvePexelsImage(`${dest.name} ${dest.country}`);
+    if (!image) continue;
+
+    await prisma.destination.update({
+      where: { id },
+      data: {
+        imageUrl: image.url,
+        imageAlt: image.alt,
+        imageCredit: image.credit,
+        imageCreditUrl: image.creditUrl,
+      },
+    });
+    updates.push({
+      destId: id,
+      imageUrl: image.url,
+      imageAlt: image.alt,
+      imageCredit: image.credit,
+      imageCreditUrl: image.creditUrl,
+    });
+  }
+
+  return updates;
 }
 
 // Persist the completed turn: append the user and assistant messages to the

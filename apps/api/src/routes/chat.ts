@@ -22,6 +22,7 @@ import {
   parseChatMessages,
   persistTurn,
   reconcileDestinations,
+  resolveCovers,
 } from "../services/chat";
 
 export const chatRouter = Router();
@@ -128,8 +129,10 @@ chatRouter.post(
       if (toolBlock) {
         const parsed = setItineraryToolInputSchema.safeParse(toolBlock.input);
         if (parsed.success) {
-          // Reconcile preserves notes and covers, then emit the merged set.
-          const { destinations } = await reconcileDestinations(
+          // Reconcile preserves notes and covers, then emit the merged set. The
+          // itinerary renders immediately with existing covers; new or changed
+          // stops resolve afterward and arrive via the images event.
+          const { destinations, resolveImageIds } = await reconcileDestinations(
             itineraryId,
             parsed.data.destinations,
           );
@@ -138,6 +141,13 @@ chatRouter.post(
             title: newTitle,
             destinations: destinations.map(toDestinationDTO),
           });
+
+          if (resolveImageIds.length > 0) {
+            const updates = await resolveCovers(destinations, resolveImageIds);
+            if (updates.length > 0) {
+              sendEvent(res, "images", { updates });
+            }
+          }
         }
         // On validation failure we keep the prose and drop the structured update
         // rather than corrupting the saved draft.
