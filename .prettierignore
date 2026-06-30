@@ -1,0 +1,10 @@
+node_modules
+dist
+apps/api/prisma/generated
+apps/api/prisma/dev.db
+yarn.lock
+
+# Authored source-of-truth docs, kept as written
+CLAUDE.md
+design.md
+ux-flows.md

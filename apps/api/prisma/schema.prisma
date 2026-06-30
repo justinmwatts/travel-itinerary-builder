@@ -1,0 +1,14 @@
+// Prisma schema. SQLite for v1 (design.md D8). Stays engine-neutral so the
+// Postgres swap is a one-line provider change: avoid `mode: "insensitive"` and
+// match on a normalized lowercase `searchText` field instead.
+//
+// The data model (User, Itinerary, Destination, Reaction) lands in Phase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
