@@ -4,8 +4,11 @@ import type { FeedItem } from "@travel/shared";
 import { CoverImage } from "../../components/CoverImage";
 import { ReactionBar } from "../../components/ReactionBar";
 import { coverHeight, objectFitFor, objectPositionFor } from "../../lib/layoutStyles";
+import { useReactionToggle } from "../reactions/api";
 
 export function FeedCard({ item }: { item: FeedItem }) {
+  const { toggle, isPending } = useReactionToggle();
+
   // Open at the matched stop when the card came from a search.
   const matched = item.matchedDestinationIds[0];
   const to = matched ? `/itinerary/${item.id}?highlight=${matched}` : `/itinerary/${item.id}`;
@@ -46,7 +49,13 @@ export function FeedCard({ item }: { item: FeedItem }) {
             {item.author.displayName}
           </Text>
           <Box mt="3">
-            <ReactionBar heartCount={item.heartCount} likeCount={item.likeCount} />
+            <ReactionBar
+              heartCount={item.heartCount}
+              likeCount={item.likeCount}
+              myReactions={item.myReactions}
+              disabled={isPending}
+              onToggle={(type) => toggle(item.id, type, item.myReactions.includes(type))}
+            />
           </Box>
         </Box>
       </Box>

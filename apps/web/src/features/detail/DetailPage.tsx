@@ -18,6 +18,7 @@ import { ReactionBar } from "../../components/ReactionBar";
 import { densityStyle, objectFitFor, objectPositionFor } from "../../lib/layoutStyles";
 import { useMe } from "../auth/api";
 import { useItinerary } from "../itineraries/api";
+import { useReactionToggle } from "../reactions/api";
 
 function DestinationBlock({
   destination,
@@ -90,6 +91,7 @@ export function DetailPage() {
   const highlightId = searchParams.get("highlight");
   const { data: me } = useMe();
   const { data: itinerary, isPending, isError } = useItinerary(id);
+  const { toggle, isPending: reacting } = useReactionToggle();
 
   // Open at the matched stop when arriving from a search.
   useEffect(() => {
@@ -147,6 +149,8 @@ export function DetailPage() {
           heartCount={itinerary.heartCount}
           likeCount={itinerary.likeCount}
           myReactions={itinerary.myReactions}
+          disabled={reacting}
+          onToggle={(type) => toggle(itinerary.id, type, itinerary.myReactions.includes(type))}
         />
       </Flex>
 

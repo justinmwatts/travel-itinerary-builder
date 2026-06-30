@@ -1,11 +1,14 @@
 import { Router } from "express";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   DEFAULT_LAYOUT_CONFIG,
   LIMITS,
   createItineraryRequestSchema,
+  createReactionRequestSchema,
+  reactionTypeSchema,
   updateDestinationNoteRequestSchema,
   updateItineraryRequestSchema,
+  type ReactionSummary,
   type ReactionType,
 } from "@travel/shared";
 import { prisma } from "../lib/prisma";
@@ -24,6 +27,19 @@ async function loadMyReactions(itineraryId: string, userId?: string): Promise<Re
     select: { type: true },
   });
   return rows.map((r) => r.type as ReactionType);
+}
+
+// Current counts plus the caller's reaction state, returned after a toggle.
+async function loadReactionSummary(itineraryId: string, userId: string): Promise<ReactionSummary> {
+  const it = await prisma.itinerary.findUniqueOrThrow({
+    where: { id: itineraryId },
+    select: { heartCount: true, likeCount: true },
+  });
+  return {
+    heartCount: it.heartCount,
+    likeCount: it.likeCount,
+    myReactions: await loadMyReactions(itineraryId, userId),
+  };
 }
 
 // GET /api/itineraries?mine=true -> the caller's drafts and published, grouped.
@@ -214,6 +230,80 @@ itinerariesRouter.post(
     });
     const myReactions = await loadMyReactions(id, userId);
     res.json(toItineraryDTO(updated, { includeChat: true, myReactions }));
+  }),
+);
+
+// POST /api/itineraries/:id/reactions -> idempotent toggle on. Target must be
+// published, else 404. The unique (itineraryId, userId, type) constraint keeps
+// rapid taps correct: a duplicate create fails P2002 and the transaction rolls
+// back, so the denormalized count is incremented exactly once.
+itinerariesRouter.post(
+  "/:id/reactions",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId;
+    if (!userId) throw unauthorized();
+    const id = req.params.id;
+    if (!id) throw notFound("Itinerary not found");
+    const { type } = createReactionRequestSchema.parse(req.body);
+
+    const itinerary = await prisma.itinerary.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    if (!itinerary || itinerary.status !== "published") {
+      throw notFound("Itinerary not found");
+    }
+
+    const increment: Prisma.ItineraryUpdateInput =
+      type === "heart" ? { heartCount: { increment: 1 } } : { likeCount: { increment: 1 } };
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.reaction.create({ data: { itineraryId: id, userId, type } });
+        await tx.itinerary.update({ where: { id }, data: increment });
+      });
+    } catch (err) {
+      // Already reacted: idempotent no-op. Any other error propagates.
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+        throw err;
+      }
+    }
+
+    res.json(await loadReactionSummary(id, userId));
+  }),
+);
+
+// DELETE /api/itineraries/:id/reactions/:type -> toggle off. Decrements the count
+// only when a row was actually removed, so a double toggle-off cannot underflow.
+itinerariesRouter.delete(
+  "/:id/reactions/:type",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId;
+    if (!userId) throw unauthorized();
+    const id = req.params.id;
+    if (!id) throw notFound("Itinerary not found");
+    const type = reactionTypeSchema.parse(req.params.type);
+
+    const itinerary = await prisma.itinerary.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    if (!itinerary || itinerary.status !== "published") {
+      throw notFound("Itinerary not found");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const removed = await tx.reaction.deleteMany({ where: { itineraryId: id, userId, type } });
+      if (removed.count > 0) {
+        const decrement: Prisma.ItineraryUpdateInput =
+          type === "heart" ? { heartCount: { decrement: 1 } } : { likeCount: { decrement: 1 } };
+        await tx.itinerary.update({ where: { id }, data: decrement });
+      }
+    });
+
+    res.json(await loadReactionSummary(id, userId));
   }),
 );
 
