@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import {

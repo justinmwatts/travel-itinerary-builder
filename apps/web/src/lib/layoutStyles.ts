@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import type { CardSize, ImageCrop, ImageFocus, TextDensity } from "@travel/shared";
 
 // Maps the layoutConfig controls to concrete values (ux-flows.md section 7).

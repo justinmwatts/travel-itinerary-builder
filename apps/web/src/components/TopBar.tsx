@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { Box, Button, Flex, Heading, Menu, Spacer, Text } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useLogout, useMe } from "../features/auth/api";

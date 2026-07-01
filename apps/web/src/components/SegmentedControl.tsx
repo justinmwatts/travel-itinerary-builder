@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { Box, Flex, Text } from "@chakra-ui/react";
 
 // A small labeled segmented control for the customize editor.

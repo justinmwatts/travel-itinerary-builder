@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 // Typed HTTP errors thrown by routes and services, mapped to responses by the
 // central error handler. `code` is a stable machine-readable string for the
 // client; `message` is human-readable.

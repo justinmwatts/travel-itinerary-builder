@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 // Thin fetch wrapper. Always sends the session cookie (credentials: include),
 // speaks JSON, and throws a typed ApiError on non-2xx so callers can branch on
 // status (e.g. 401 -> logged out, 409 -> email taken).

@@ -73,3 +73,7 @@ Wire these as yarn workspace scripts in Phase 0, then update this section with t
 - Co-locate frontend code by feature under `apps/web/src/features`.
 - Conventional, descriptive names. Small functions, clear boundaries.
 - Any prose you write (docs, comments, commit messages) uses no em dashes and no Oxford comma.
+
+## Licensing
+
+Every new first-party source file gets the proprietary copyright header (see LICENSE). The repo is private and UNLICENSED. Never add an open-source license.

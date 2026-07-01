@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { useEffect, useRef, useState } from "react";
 import { Box, Button, Flex, Stack, Text, Textarea } from "@chakra-ui/react";
 import type { ChatStatus, DisplayMessage } from "../../stores/chatStore";

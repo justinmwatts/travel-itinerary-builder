@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { FeedResponse, Itinerary, ReactionSummary, ReactionType } from "@travel/shared";

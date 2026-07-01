@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 // Prisma schema matching design.md section 6. SQLite for v1 (design.md D8),
 // kept engine-neutral so the Postgres swap is a one-line provider change:
 //   - status and reaction type are String, constrained by zod at the app layer

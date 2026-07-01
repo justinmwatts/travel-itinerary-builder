@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Flex, Spinner } from "@chakra-ui/react";

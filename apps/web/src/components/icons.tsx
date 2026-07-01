@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 // Minimal inline SVG icons so we avoid an icon-library dependency. They inherit
 // color via currentColor and size via 1em.
 export function HeartIcon({ filled = false }: { filled?: boolean }) {

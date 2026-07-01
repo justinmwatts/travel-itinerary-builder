@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
 
 // Design tokens and theme from ux-flows.md section 7. Editorial travel direction:

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { Link as RouterLink } from "react-router-dom";
 import { Box, Heading, Text } from "@chakra-ui/react";
 import type { FeedItem } from "@travel/shared";

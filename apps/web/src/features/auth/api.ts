@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthResponse, LoginRequest, SignupRequest, User } from "@travel/shared";
 import { ApiError, apiRequest } from "../../lib/apiClient";

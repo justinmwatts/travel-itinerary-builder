@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Box, Button, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";

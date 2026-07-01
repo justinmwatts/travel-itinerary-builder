@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Justin Watts. All rights reserved.
+// Proprietary and confidential. Unauthorized copying, distribution, or use of
+// this file, via any medium, is strictly prohibited without prior written permission.
 // Normalization shared by search indexing, query matching and destination
 // reconciliation. Strips accents and lowercases so "São Paulo" and "Sao Paulo"
 // match (design.md sections 8 and 14). Keeping this in the shared package means
