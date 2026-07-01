@@ -94,10 +94,13 @@ States:
 - **Empty (no posts yet):** illustration plus "No itineraries yet. Be the first to create one." CTA to `/build`.
 - **Empty (no search results):** "No itineraries mention 'xyz'. Try a city or country." with a clear-search action.
 - **Error:** inline retry card, feed stays navigable.
+- **Under moderation:** a card whose itinerary has crossed the report threshold stays in the grid but renders blurred behind a "Content Under Moderation" overlay (see section 6). Its cover, title and body are not legible and its links are inert. The owner viewing their own flagged card sees a quieter notice ("Under moderation. Only you can see this while it is reviewed.") in place of the generic overlay, with the card still openable so they can edit or unpublish.
 
 Search behavior: debounced 300ms, matches destination name or country across all published itineraries, returns the parent itineraries. Clicking a result opens the full itinerary, scrolled to the matched destination. Search reflects in the URL (`/?q=lisbon`) so results are shareable and back-button friendly.
 
 Reactions: heart and like, each a toggle. A reaction the current user has already given renders in its active state, the rest inactive, both with counts. Optimistic update on tap with rollback on failure. Tapping while logged out routes to `/login` and returns the user to the feed with the intended reaction preserved as a hint.
+
+Reporting: an overflow ("...") affordance on each card exposes a "Report" action, available to logged-in visitors on itineraries that are not their own. It opens a small sheet with a reason (spam, offensive, unsafe, other) and an optional note, then confirms with a quiet "Thanks, we will take a look." A user who already reported an itinerary sees the action in a done state rather than an error. Reporting while logged out routes to `/login` and returns to the feed. The raw report count and who else reported are never shown, so reporting cannot become a harassment signal.
 
 ### 3.3 Itinerary detail (`/itinerary/:id`)
 
@@ -120,7 +123,11 @@ Read view of a full itinerary. Honors the creator's saved layout config (text de
 +---------------------------------------------------------------+
 ```
 
-States: loading (header skeleton plus destination skeletons), success, not-found (deleted or never existed), forbidden (a draft viewed by a non-owner). If the viewer is the owner, an "Edit" affordance routes into `/build/:id`.
+States: loading (header skeleton plus destination skeletons), success, not-found (deleted or never existed), forbidden (a draft viewed by a non-owner), under moderation. If the viewer is the owner, an "Edit" affordance routes into `/build/:id`.
+
+Under moderation: when an itinerary has crossed the report threshold, a visitor opening its detail sees the content blurred behind the same "Content Under Moderation" overlay used on the feed (section 6), with no reactions available. The owner instead sees their itinerary in full with a notice banner explaining it is under moderation and hidden from others, plus the usual Edit and unpublish paths so they can act on it.
+
+Reporting: the same overflow "Report" affordance from the feed card appears in the detail header for logged-in visitors on itineraries that are not their own, opening the same reason sheet.
 
 Image and credit: every image has a deterministic fallback (a colored block keyed to the location name with the location initial), and a "Photo by NAME on Pexels" credit renders under it linking to the photo page. No broken-image icons ever render. See section 6.
 
@@ -146,13 +153,15 @@ Interaction model:
 - When a turn completes, the structured itinerary on the right updates: new destinations animate in, changed ones highlight briefly.
 - The user keeps refining by chatting ("swap Madrid for Seville", "add two days in Porto"). Each refinement re-renders the right panel, and notes plus covers on unchanged stops carry through untouched.
 
-Per-destination notes (in-panel): each destination card has a note affordance. Clicking opens an inline editor (textarea) scoped to that destination. Notes are the creator's own words, kept separate from AI text both visually and in the schema. Notes autosave on blur to the draft.
+Per-destination notes (in-panel): each destination card has a note affordance. Clicking opens an inline editor (textarea) scoped to that destination. Notes are the creator's own words, kept separate from AI text both visually and in the schema. Notes autosave on blur to the draft. A note is screened for toxicity before it saves, so a flagged note does not persist (see the note-rejected state below).
 
 States:
 - **First load (empty chat):** a friendly prompt plus 3 starter chips ("Weekend city break", "2-week road trip", "Beach and food").
 - **Streaming:** assistant bubble shows live tokens, send disabled, a stop control available.
 - **Itinerary updating:** the right panel shows a subtle shimmer on the cards being rewritten, not a full-panel spinner.
 - **AI error:** the failed assistant turn shows an inline "Couldn't reach the assistant. Retry." that re-sends the last user message. Prior conversation is preserved.
+- **Response blocked:** if a completed assistant turn fails the safety check, its streamed bubble is replaced in place with a short safe message ("I can only help with planning your trip. Let us keep it about travel.") and no itinerary change is applied for that turn. Prior conversation is preserved and the user can keep going.
+- **Note rejected:** if a note is flagged as toxic on save, the inline editor stays open with the unsaved text intact, shows a message ("This note may break the community guidelines. Please revise it."), and does not persist until the creator edits and resaves.
 - **Rate limited:** if the user sends too fast, an inline "Slow down a moment" note appears with send briefly disabled, rather than a hard error.
 - **Session expired:** if auth lapses mid-build, the next send routes to login with a "Session expired, sign back in" note, then returns to the draft, which is saved server-side so nothing is lost.
 - **Draft autosave:** a quiet "Saved" indicator. On navigation away or refresh the draft is recoverable from `/me` and `/build/:id`.
@@ -283,7 +292,9 @@ A broken or slow image never shows a browser broken-image glyph and never collap
 
 **Empty states.** Every list has a purpose-built empty state with a next action, never a blank screen.
 
-**Accessibility.** Full keyboard path through chat, feed and reactions. Streaming assistant text and the updating itinerary panel sit in `aria-live="polite"` regions so screen readers hear new content without losing focus. Reaction buttons expose pressed state and counts to assistive tech. Images carry alt text from the location name. Focus moves to new content on route change. Color is never the only signal for reaction state.
+**Content Under Moderation overlay.** One reusable pattern used on the feed card and the detail view for an itinerary that has crossed the report threshold. The underlying content is blurred (a CSS blur plus a paper scrim using the existing `overlay` shadow and `muted` tokens, no new tokens), and a centered lockup reads "Content Under Moderation" with a one-line explanation. The blurred content beneath is inert: it is not selectable, its links and reaction controls do not fire, and it is removed from the tab order. The overlay never uses a broken or alarming visual and stays within the editorial, warm palette. The owner variant swaps the generic overlay for a quieter inline notice and leaves their own content readable and actionable. Reporting uses a small reason sheet (spam, offensive, unsafe, other) reached from an overflow affordance and confirms quietly without revealing counts.
+
+**Accessibility.** Full keyboard path through chat, feed and reactions. Streaming assistant text and the updating itinerary panel sit in `aria-live="polite"` regions so screen readers hear new content without losing focus. Reaction buttons expose pressed state and counts to assistive tech. Images carry alt text from the location name. Focus moves to new content on route change. Color is never the only signal for reaction state. The moderation overlay hides the blurred content from assistive tech (`aria-hidden`) and announces the "Content Under Moderation" status instead, so a screen reader is not read the withheld text. The report affordance is a labelled button, and its reason sheet is a focus-trapped dialog with a text label per reason so choices do not rely on color or icon alone.
 
 ---
 
@@ -435,3 +446,4 @@ Wrap the app in `<ChakraProvider value={system}>`. The type scale above goes in 
 - Following users, profiles beyond display name, notifications.
 - Collaborative or multi-user live editing of one itinerary.
 - Drag-to-reorder destinations (v1 reorders via chat: "move Porto before Lisbon").
+- A moderator or admin review console, a report queue UI, and an owner appeal flow. v1 moderation is automatic, and the owner's only recourse is to edit or unpublish (see `design.md` decisions D11 and D12).

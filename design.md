@@ -14,6 +14,7 @@ This is the source of truth for implementation. Pair it with `ux-flows.md`. Ever
 - Layout and image-treatment customization before publishing.
 - Public feed: browse, search by location, react with heart or like.
 - Email plus password auth with itinerary ownership, edit and delete.
+- Content moderation across the conversational and social surfaces: AI response guardrails, creator note moderation, and a visitor report system with an under-moderation overlay (decisions D10 to D12, wired through sections 6, 7, 8, 11 and 14).
 - Loading, empty and error states throughout. Responsive desktop to mobile.
 
 **Out of scope (v1), documented for v2**
@@ -21,6 +22,8 @@ This is the source of truth for implementation. Pair it with `ux-flows.md`. Ever
 - Full comment threads on the feed.
 - Following, notifications, rich profiles.
 - Collaborative editing, drag-reorder, real-time multi-user.
+- A moderator or admin review console, a moderation queue or dashboard, and an owner appeal flow. Moderation is automatic in v1 (decisions D11 and D12).
+- A trained or self-hosted toxicity classifier or any ML moderation pipeline. v1 classifies with a Claude call (decision D10).
 
 ---
 
@@ -37,6 +40,9 @@ This is the source of truth for implementation. Pair it with `ux-flows.md`. Ever
 | D7 | Chat transport | **Server-Sent Events.** | Chat is turn-based and the streaming is one-directional (server to client tokens). SSE is plain HTTP, proxy-friendly, auto-reconnecting and trivial to back with the Anthropic streaming SDK. The client sends each turn as a normal POST and reads the stream back. A stateful socket connection is reserved for v2 real-time multi-user features. |
 | D8 | Datastore | **SQLite via Prisma for v1, Postgres swap for production.** | Zero infra, real persistence, runs from a single file so a reviewer can clone and run. Prisma keeps the provider swap to a one-line change. Weighed in 2.1. |
 | D9 | Backend framework | **Express plus zod validation.** | Ubiquitous, well understood, and zod gives request validation plus shared types in one place. |
+| D10 | Moderation provider | **A Claude classification call via a dedicated fast model (`claude-haiku-4-5`), reused for both AI-output and creator-note moderation. No new dependency.** | The Anthropic integration already exists, so a second cheap classify call adds moderation with zero new libraries or external services, which the fixed stack favors. A profanity word list is brittle and misses context, a hosted moderation API adds a second vendor and key. Tradeoff: one extra call adds latency and cost per note save and per completed chat turn, bounded by a small model, a short classification prompt and a strict output cap. |
+| D11 | Report handling | **Threshold-based auto-hide behind a "Content Under Moderation" overlay. Authenticated reporters only, one report per user per itinerary, published targets only.** | A single report must not let one user censor a post, so appearance changes only once distinct reporters reach a threshold (D11a, default 3). At that point the itinerary flips to `under_review` and renders blurred behind the overlay while staying in the feed, which is reversible and needs no human in the loop for v1. Tradeoff: a coordinated group can trip the threshold, mitigated by the per-user unique constraint, rate limiting and the v2 review console. |
+| D12 | Moderation scope | **Automatic moderation only in v1. Moderator console, takedown to `hidden` and owner appeal deferred to v2.** | There is no admin role in v1, so building a review surface is out of scope. The state machine and the `hidden` terminal state are defined now so the schema is forward-compatible, but v1 only ever reaches `under_review` automatically. The owner still sees their own flagged post with a notice and can unpublish or edit it. |
 
 ### 2.1 Datastore weighing (D8)
 
@@ -51,6 +57,14 @@ Kept brief because the two are closer than the one-liner implies. The call pivot
 **Why SQLite for now.** v1 is a self-contained build meant to run on a reviewer's machine, so removing all infra friction outweighs production parity at demo load. It is still a real relational database with foreign keys, unique constraints, cascade deletes, transactions and migrations, so ownership, authz and reaction integrity behave correctly. The Postgres wins (concurrent writes, richer search) do not bite at v1 volume.
 
 **Keeping the swap cheap.** The one-line swap holds only if we stay engine-neutral. Avoid Prisma `mode: "insensitive"` which is Postgres only, and instead match on a normalized lowercase `searchText` field with `contains`. Keep JSON columns (`layoutConfig`, `chatMessages`) read-whole rather than queried inside. Constrain `status` and reaction `type` enums in zod at the app layer. With that discipline, moving to Postgres is three steps: set `provider` to `postgresql`, point `DATABASE_URL` at the instance, run `prisma migrate deploy`. Revisit if v1 ships as a deployed shared link rather than a cloned repo, in which case hosted Postgres such as Neon removes the swap entirely with no local service.
+
+### 2.2 Open moderation decisions (pending sign-off)
+
+These three are set to a recommended default in this document but flagged for confirmation before the moderation phases start.
+
+- **D11a Report threshold.** Default 3 distinct reporters flips an itinerary to `under_review`. Lower is safer but easier to abuse, higher exposes reported content longer.
+- **D12a AI-output failed-turn behavior.** Default on a completed turn that fails the safety check: replace the streamed assistant prose with a safe fallback message and drop that turn's structured itinerary update. Alternative: redact only the offending span and keep the rest.
+- **D12b Moderation-provider outage behavior.** Default: fail open and log, leaning on the system-prompt guardrail (AI) and the report system (notes) as backstops. Alternative: fail closed and block the note save or the turn when the classifier is unreachable.
 
 ---
 
@@ -156,6 +170,8 @@ erDiagram
     ITINERARY ||--o{ DESTINATION : contains
     USER ||--o{ REACTION : makes
     ITINERARY ||--o{ REACTION : receives
+    USER ||--o{ REPORT : files
+    ITINERARY ||--o{ REPORT : receives
 
     USER {
         string id PK
@@ -169,11 +185,21 @@ erDiagram
         string ownerId FK
         string title
         string status "draft | published"
+        string moderationStatus "visible | under_review | hidden"
+        int reportCount "distinct reporters, denormalized"
         json layoutConfig
         json chatMessages "conversation history"
         datetime createdAt
         datetime updatedAt
         datetime publishedAt
+    }
+    REPORT {
+        string id PK
+        string itineraryId FK
+        string reporterId FK
+        string reason "spam | offensive | unsafe | other"
+        string detail "optional free text, nullable, capped"
+        datetime createdAt
     }
     DESTINATION {
         string id PK
@@ -200,13 +226,15 @@ erDiagram
 
 Constraints worth enforcing in Prisma:
 - `REACTION` unique on `(itineraryId, userId, type)` so a toggle cannot double-count.
-- `DESTINATION` and `REACTION` cascade-delete with their `ITINERARY`.
-- `status` and reaction `type` are constrained enums.
+- `REPORT` unique on `(itineraryId, reporterId)` so one user counts once toward a threshold.
+- `DESTINATION`, `REACTION` and `REPORT` cascade-delete with their `ITINERARY`.
+- `status`, `moderationStatus`, reaction `type` and report `reason` are constrained enums.
 - `chatMessages` and `layoutConfig` are JSON columns. Keeping the conversation on the itinerary lets a draft resume across devices and sessions.
 - Index `ITINERARY` on `(publishedAt, id)` for the feed keyset order, and `DESTINATION` on `searchText` for location search.
 - Reaction counts are derived per itinerary and type. For the feed hot path they may be denormalized onto the itinerary and updated on each reaction write to avoid an N+1.
-- `DESTINATION.note` and the image fields are owned by the creator and the image service respectively, never written by the chat tool. Reconciliation (section 8) preserves them across refinements.
-- Caps enforced in the shared schema: max destinations per itinerary, max itineraries per user, and max note and message length, to bound cost and storage.
+- `moderationStatus` defaults to `visible` and `reportCount` to 0. `reportCount` is the count of distinct reporters, incremented on each new report and used to trip the D11 threshold. Only reaching the threshold flips `moderationStatus` to `under_review`. `hidden` is a v2 moderator terminal state, never set automatically in v1 (D12).
+- `DESTINATION.note` and the image fields are owned by the creator and the image service respectively, never written by the chat tool. Reconciliation (section 8) preserves them across refinements. Notes are moderated synchronously at write time (section 8) and rejected on failure rather than stored flagged, so no moderation column is needed on `DESTINATION`.
+- Caps enforced in the shared schema: max destinations per itinerary, max itineraries per user, max note and message length, and max report `detail` length, to bound cost and storage.
 
 `layoutConfig` shape:
 ```ts
@@ -236,9 +264,9 @@ All bodies validated against shared zod schemas. Auth is a signed JWT in an http
 | Method | Path | Auth | Notes |
 |---|---|---|---|
 | POST | `/api/itineraries` | auth | Creates an empty draft, returns it. |
-| GET | `/api/itineraries/:id` | public if published, owner if draft | Full itinerary with destinations, plus `heartCount`, `likeCount` and `myReactions` when authed. |
+| GET | `/api/itineraries/:id` | public if published, owner if draft | Full itinerary with destinations, plus `heartCount`, `likeCount` and `myReactions` when authed, along with `moderationStatus`. When `moderationStatus` is `under_review` the response still returns for the overlay to render, and the owner additionally gets a flag that it is their own post. |
 | PATCH | `/api/itineraries/:id` | auth, owner | Owner-editable fields only: `title`, `layoutConfig`. Destination content is owned by the chat service, notes by the destination endpoint below. Touches `updatedAt`, never `publishedAt`. |
-| PATCH | `/api/itineraries/:id/destinations/:destId` | auth, owner | Sets the creator `note` on one destination. The only client write path to a destination, so it cannot clobber AI-owned fields. |
+| PATCH | `/api/itineraries/:id/destinations/:destId` | auth, owner | Sets the creator `note` on one destination. The only client write path to a destination, so it cannot clobber AI-owned fields. The note is moderated before it is saved (section 8): on a toxic or profane note the server rejects with 422 and code `note_flagged`, does not persist, and returns the reason category so the editor can prompt a revise. |
 | POST | `/api/itineraries/:id/publish` | auth, owner | Validates preconditions (non-empty `title`, at least one destination), flips `status` to published, stamps `publishedAt`. 422 if preconditions fail. |
 | DELETE | `/api/itineraries/:id` | auth, owner | Cascades destinations and reactions. |
 | GET | `/api/itineraries?mine=true` | auth | Caller's drafts and published. |
@@ -246,9 +274,14 @@ All bodies validated against shared zod schemas. Auth is a signed JWT in an http
 **Feed and reactions**
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/api/feed?q=&cursor=&limit=` | public | Published only, ordered `publishedAt` desc with `id` as tiebreak, keyset paginated on that key. `q` matches destination name or country. Each item carries cover, title, author, stop count, `heartCount`, `likeCount`, matched-destination ids and `myReactions` when authed. |
+| GET | `/api/feed?q=&cursor=&limit=` | public | Published only, ordered `publishedAt` desc with `id` as tiebreak, keyset paginated on that key. `q` matches destination name or country. Each item carries cover, title, author, stop count, `heartCount`, `likeCount`, matched-destination ids, `moderationStatus` and `myReactions` when authed. An `under_review` item stays in the feed so the card can render the overlay in place. |
 | POST | `/api/itineraries/:id/reactions` | auth | Body: type. Target must be published, else 404. Idempotent toggle on. Returns counts plus the caller's reaction state. |
 | DELETE | `/api/itineraries/:id/reactions/:type` | auth | Toggle off. Returns counts. |
+
+**Reports and moderation**
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/api/itineraries/:id/reports` | auth | Body: `reason` (enum) and optional `detail`. Target must be published, else 404. Idempotent per user: a repeat report by the same user returns the existing report rather than double-counting, enforced by the `(itineraryId, reporterId)` unique constraint. On a new report the server increments `reportCount` and, if it reaches the D11 threshold, flips `moderationStatus` to `under_review` in the same transaction. Returns `{ reported: true, moderationStatus }` without leaking the raw count or other reporters. Reporting your own itinerary is rejected with 422. Rate-limited per user. |
 
 **Chat (SSE)**
 | Method | Path | Auth | Notes |
@@ -259,6 +292,7 @@ SSE event protocol:
 - `event: token` data: `{ "delta": "..." }` (assistant prose, streamed)
 - `event: itinerary` data: `{ destinations: [...] }` (structured update after reconciliation, emitted once tool use resolves; `imageUrl` may be null at this point. A turn that only converses emits no itinerary event)
 - `event: images` data: `{ updates: [{ destId, imageUrl, imageAlt, imageCredit, imageCreditUrl }] }` (sent after covers resolve, for new or changed destinations only)
+- `event: moderation` data: `{ "action": "replace", "message": "...", "code": "..." }` (emitted before `done` when the completed turn fails the safety check in section 8. The client replaces the streamed assistant prose for this turn with `message` and discards any pending structured update. No `itinerary` event is emitted for a blocked turn)
 - `event: done` data: `{ "messageId": "..." }`
 - `event: error` data: `{ "message": "...", "code": "..." }` (codes cover upstream 429, 529, timeout, validation and unauthenticated)
 
@@ -281,6 +315,8 @@ export const CLAUDE_MODEL = "claude-sonnet-4-6";
 export const CLAUDE_EFFORT = "low" as const;   // output_config.effort, the floor for Sonnet 4.6
 export const CLAUDE_THINKING_ENABLED = false;  // false omits the thinking block, so no extended thinking
 export const CLAUDE_MAX_TOKENS = 1500;         // per-turn output cap, tune to itinerary size
+export const MODERATION_MODEL = "claude-haiku-4-5"; // fast, cheap classifier for AI-output and note moderation (D10)
+export const MODERATION_MAX_TOKENS = 64;            // classify-only, a tiny structured verdict
 ```
 
 Applied to every Messages call:
@@ -321,7 +357,15 @@ Only new or changed destinations are queued for Pexels resolution, so unchanged 
 - The itinerary lives in the DB, so we send a compact current-state summary plus recent turns rather than the entire transcript every time.
 - Hard caps enforced in the shared schema: max destinations per itinerary, max itineraries per user, and max note and message length.
 
-**Prompt strategy (server-owned).** A fixed system prompt defines the assistant's role, the tool, the expected destination fields (name, country, description, order) and the rule that creator notes are user-authored and must never be invented by the model. Keeping the prompt server-side means the client cannot tamper with it.
+**Prompt strategy (server-owned).** A fixed system prompt defines the assistant's role, the tool, the expected destination fields (name, country, description, order) and the rule that creator notes are user-authored and must never be invented by the model. It also carries the guardrail constraints below. Keeping the prompt server-side means the client cannot tamper with it.
+
+**Guardrails and moderation.** Moderation runs in two layers and shares one small building block.
+
+- **Layer 1, system-prompt guardrails (primary).** The system prompt constrains the assistant to travel planning only and forbids unsafe, hateful, sexual or harassing content. It instructs the model to decline off-topic or unsafe requests with a short redirect back to trip planning rather than complying. This is the main line of defense and catches the large majority of cases before any content streams.
+- **Layer 2, a completed-turn safety check (backstop).** Because tokens stream live (D7), the assistant prose is already on screen by the time a turn finishes, so a full pre-render gate is not possible without abandoning streaming. Instead, once the turn completes the server runs a classification pass over the full assistant prose plus the structured `set_itinerary` input, before it emits the `itinerary` event or persists anything. On a failing verdict the server drops the structured update, replaces the stored and displayed prose with a safe fallback and emits the SSE `moderation` event (section 7) so the client swaps the streamed bubble. The residual exposure is the brief on-screen flash before replacement, accepted because Layer 1 makes a Layer 2 hit rare (D12a governs replace vs redact).
+- **Creator notes (synchronous gate).** The note PATCH classifies the note before persisting. A toxic or profane note is rejected with 422 `note_flagged` and never stored, so there is no flagged-but-saved state (section 6). This is a true pre-post gate because notes do not stream.
+
+The shared building block is a single moderation service that wraps one `MODERATION_MODEL` classify call returning a compact verdict (a category plus a boolean). It is provider-abstracted behind one function so the classifier can later be swapped without touching call sites. On a classifier error or timeout the default is fail open and log, leaning on Layer 1 for AI output and the report system for notes (D12b). Moderation is a toxicity and safety concern and sits beside, not instead of, the DOMPurify sanitization that handles XSS at render time (section 11): the two address different threats.
 
 ```mermaid
 sequenceDiagram
@@ -336,9 +380,16 @@ sequenceDiagram
         S-->>C: SSE token
     end
     M-->>S: tool_use set_itinerary(destinations)
-    S->>S: zod validate
-    S-->>C: SSE itinerary
-    S->>S: persist destinations + chatMessages
+    S->>M: classify prose + structured input (MODERATION_MODEL)
+    M-->>S: verdict
+    alt verdict safe
+        S->>S: zod validate
+        S-->>C: SSE itinerary
+        S->>S: persist destinations + chatMessages
+    else verdict unsafe
+        S->>S: drop update, store fallback prose
+        S-->>C: SSE moderation (replace)
+    end
     S-->>C: SSE done
 ```
 
@@ -397,8 +448,10 @@ flowchart TD
 - **Passwords.** bcrypt with a sane cost. Never logged.
 - **Input validation.** Every endpoint validates its body and params against the shared zod schema before touching the DB.
 - **Output sanitization.** Both AI-generated descriptions and creator notes are rendered as text, and any HTML path is sanitized with DOMPurify. Treat model output as untrusted.
+- **Content moderation.** A separate layer from sanitization. Sanitization stops XSS at render time, moderation (section 8) screens for toxic, unsafe or off-topic content in AI output and creator notes. Both run: a note is moderated for toxicity and still sanitized for markup. Moderation classifies with a server-side Claude call, so the classifier prompt and verdict never reach the client.
+- **Report abuse.** Reporting is authenticated and unique per user per itinerary, so one account cannot inflate a count, and appearance changes only at a distinct-reporter threshold (D11) rather than on a single report. Reports are rate-limited, self-reporting is rejected, and the report response never discloses the raw count or who else reported, to avoid a harassment or retaliation signal.
 - **Authorization.** Ownership checks on every write. A draft is only readable by its owner. Editing or deleting another user's itinerary returns 403.
-- **Rate limiting.** Per-user limits on `/api/chat` and `/api/images` to bound cost and abuse. Global IP limit on auth endpoints.
+- **Rate limiting.** Per-user limits on `/api/chat`, `/api/images` and `/api/itineraries/:id/reports` to bound cost and abuse. Global IP limit on auth endpoints.
 - **DB safety.** Prisma parameterizes all queries.
 - **CORS.** Locked to the web origin. Credentials enabled for the cookie.
 
@@ -478,8 +531,18 @@ Surfaced here because several are not in the brief. These belong in the build ac
 
 **Rendering and content**
 - Broken or slow images: deterministic fallback, reserved dimensions (section 9).
-- Malicious content in notes or model output: sanitized before render.
+- Malicious content in notes or model output: screened by moderation (section 8) and sanitized before render, since the two cover different threats (section 11).
 - Extremely long titles, notes or destination lists: schema caps reject oversize input with 422, and the layout controls clamp and truncate what does render.
+
+**Moderation and reporting**
+- AI produces unsafe or off-topic content: the system-prompt guardrail declines it first, and the completed-turn check replaces it with a safe fallback if it slips through (section 8). The structured update for that turn is dropped, so the draft is never corrupted.
+- Moderation classifier is slow or unreachable: fail open and log by default (D12b), so a provider outage never blocks a chat turn or a note save. The report system remains the backstop for anything that gets through.
+- Toxic creator note: rejected at save with 422 `note_flagged`, never persisted, the editor keeps the unsaved text so the creator can revise.
+- Duplicate report by the same user: unique constraint makes it idempotent, the count does not move and no error leaks that they already reported.
+- Reporting your own itinerary: rejected with 422.
+- Threshold reached: the itinerary flips to `under_review` and renders blurred behind the overlay in the feed and detail while staying reachable. The owner sees their own flagged post with a notice and can unpublish or edit it. Editing does not auto-clear the state in v1, since re-review is a v2 concern.
+- Reporting a draft or deleted itinerary: 404, only published targets are reportable.
+- Reversibility: `under_review` is a soft, reversible state. A v2 moderator can clear it back to `visible` or escalate to `hidden`. v1 never sets `hidden` automatically (D12).
 
 ---
 
@@ -568,3 +631,24 @@ Hand this section to Claude Code phase by phase. Each phase has an acceptance ba
 
 **Phase 11: Tests (if time remains)**
 - The RTL and integration suite from section 16.
+
+**Phase 12: Moderation foundation and AI guardrails**
+- Config: add `MODERATION_MODEL` and `MODERATION_MAX_TOKENS` (section 8).
+- API: a shared moderation service wrapping one classify call that returns a compact verdict, provider-abstracted behind one function, fail-open on error with logging (D12b).
+- API: extend the server-owned system prompt with the travel-only and safety constraints (Layer 1). Add the completed-turn check to `/api/chat` (Layer 2) that drops the structured update, stores a fallback and emits the `moderation` SSE event on a failing verdict.
+- Shared: add the `moderation` SSE event shape and the moderation verdict schema.
+- Web: the chat client handles the `moderation` event by replacing the streamed assistant bubble with the fallback and discarding any pending itinerary update.
+- Accept: an off-topic or unsafe request is declined by Layer 1, a seeded Layer 2 hit replaces the bubble and leaves the draft uncorrupted, and a simulated classifier outage still lets a normal turn complete.
+
+**Phase 13: Creator note moderation**
+- API: moderate the note in the destination PATCH before persisting, reject a toxic note with 422 `note_flagged` and the reason category, never store it.
+- Shared: add the `note_flagged` error code and reason enum.
+- Web: the note editor surfaces the rejection inline, keeps the unsaved text and prompts a revise (`ux-flows.md` section 3.4).
+- Accept: a toxic note is blocked and not saved, a clean note saves as before, and the rejected text is preserved for editing.
+
+**Phase 14: Report system and under-moderation overlay**
+- Prisma: add the `Report` model, the `(itineraryId, reporterId)` unique constraint, cascade delete and `moderationStatus` plus `reportCount` on `Itinerary`. Migration and seed update.
+- Shared: `Report` schemas, the `reason` enum, the report request and response shapes, plus `moderationStatus` on the itinerary and feed DTOs.
+- API: `POST /api/itineraries/:id/reports` with idempotency, self-report rejection, threshold transition to `under_review` in one transaction and rate limiting. Feed and detail responses carry `moderationStatus`.
+- Web: a report affordance on the feed card and detail, plus the reusable "Content Under Moderation" overlay that blurs an `under_review` item in place, with the owner notice on their own post (`ux-flows.md` sections 3.2, 3.3 and 6).
+- Accept: distinct reporters crossing the threshold blur the itinerary behind the overlay in both the feed and detail while it stays reachable, a duplicate report does not double-count, self-reporting is rejected, and the owner sees the notice on their own flagged post.
